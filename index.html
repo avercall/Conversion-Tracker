@@ -10,14 +10,15 @@
     import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
     import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
 
-    const firebaseConfig = {
-      apiKey: "YOUR_API_KEY",
-      authDomain: "YOUR_AUTH_DOMAIN",
-      projectId: "YOUR_PROJECT_ID",
-      storageBucket: "YOUR_STORAGE_BUCKET",
-      messagingSenderId: "YOUR_MSG_SENDER_ID",
-      appId: "YOUR_APP_ID"
-    };
+   const firebaseConfig = {
+  apiKey: "AIzaSyCK2-z1db6pPBxTl9nV10r26DN-CG1REvo",
+  authDomain: "conversion-tracker-3418b.firebaseapp.com",
+  projectId: "conversion-tracker-3418b",
+  storageBucket: "conversion-tracker-3418b.firebasestorage.app",
+  messagingSenderId: "621449595799",
+  appId: "1:621449595799:web:0aa7359d5eb7c275d6d2d2",
+  measurementId: "G-BW1RSQ21BQ"
+};
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
