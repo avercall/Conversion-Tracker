@@ -46,6 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
       console.log("✅ Logged in as:", user.email || "Anonymous");
       document.getElementById('auth-section').style.display = 'none';
       document.getElementById('main-section').style.display = 'block';
+      // Set the initial quarter input value if it's empty
+      if (!document.getElementById('quarter').value) {
+          document.getElementById('quarter').value = "2025-Q1";
+      }
       loadQuarterData();
       loadYearlySummary();
     } else {
@@ -64,17 +68,18 @@ document.addEventListener('DOMContentLoaded', () => {
       await signInWithEmailAndPassword(auth, email, password);
       alert("✅ Login successful!");
     } catch (error) {
-      if (error.code === "auth/user-not-found") {
+      // If user not found, try to create an account
+      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
         try {
           await createUserWithEmailAndPassword(auth, email, password);
           alert("✅ Account created and logged in!");
         } catch (err) {
           console.error("Error creating account:", err);
-          alert("❌ " + err.message);
+          alert("❌ Account Creation Error: " + err.message);
         }
       } else {
         console.error("Login error:", error);
-        alert("❌ " + error.message);
+        alert("❌ Login Error: " + error.message);
       }
     }
   });
@@ -115,6 +120,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     };
 
+    // Document ID uses UID to scope data to the user
     await setDoc(doc(db, "conversion_tracker", currentUser.uid + "-" + quarter), data);
     alert("✅ Quarter data saved!");
     drawChart(data);
@@ -139,8 +145,18 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('sellerSoldMarket').value = data.sellers.soldMarket;
       document.getElementById('sellerSoldOffMarket').value = data.sellers.soldOffMarket;
       drawChart(data);
+    } else {
+        // Clear inputs if no data is found for the quarter
+        const idsToClear = ['buyerScheduled', 'buyerHappened', 'buyerSigned', 'buyerClosings', 
+                            'sellerScheduled', 'sellerHappened', 'sellerSigned', 'sellerSoldMarket', 'sellerSoldOffMarket'];
+        idsToClear.forEach(id => document.getElementById(id).value = 0);
+        // Draw chart with empty data
+        drawChart({buyers: {scheduled:0, happened:0, signed:0, closings:0}, sellers: {scheduled:0, happened:0, signed:0, soldMarket:0, soldOffMarket:0}});
     }
   }
+  
+  // Set loadQuarterData on quarter input change
+  window.loadQuarterData = loadQuarterData;
 
   // Draw chart
   function drawChart(data) {
@@ -165,8 +181,8 @@ document.addEventListener('DOMContentLoaded', () => {
         datasets: [{
           label: '% Conversion',
           data: [
-            buyerApptToHappened, buyerHappenedToSigned, buyerSignedToClosed,
-            sellerApptToHappened, sellerHappenedToSigned, sellerSignedToSoldMarket, sellerSignedToSoldOffMarket
+            buyerApptToHappened.toFixed(1), buyerHappenedToSigned.toFixed(1), buyerSignedToClosed.toFixed(1),
+            sellerApptToHappened.toFixed(1), sellerHappenedToSigned.toFixed(1), sellerSignedToSoldMarket.toFixed(1), sellerSignedToSoldOffMarket.toFixed(1)
           ],
           backgroundColor: '#0d6efd'
         }]
@@ -179,9 +195,16 @@ document.addEventListener('DOMContentLoaded', () => {
   async function loadYearlySummary() {
     if (!currentUser) return;
     const colRef = collection(db, "conversion_tracker");
+    
+    // NOTE: This currently fetches ALL documents in the collection and filters in JS, 
+    // which is INEFFICIENT and a potential security risk if rules aren't set correctly. 
+    // A better approach would be to use a Firestore query with a 'where' clause on a user_id field.
     const snap = await getDocs(colRef);
     const docs = [];
-    snap.forEach(d => { if(d.id.startsWith(currentUser.uid)) docs.push(d.data()); });
+    snap.forEach(d => { 
+      // Filter documents belonging to the current user (based on your document ID convention)
+      if(d.id.startsWith(currentUser.uid)) docs.push(d.data()); 
+    });
 
     const grouped = {};
     docs.forEach(d => {
@@ -208,8 +231,11 @@ document.addEventListener('DOMContentLoaded', () => {
         buyerApptToHappened:0, buyerHappenedToSigned:0, buyerSignedToClosed:0,
         sellerApptToHappened:0, sellerHappenedToSigned:0, sellerSignedToSoldMarket:0, sellerSignedToSoldOffMarket:0
       };
+      
+      // Calculate total percentage points for each metric across the quarters
       data.forEach(d=>{
         const b=d.buyers, s=d.sellers;
+        // Check for division by zero
         avg.buyerApptToHappened += b.scheduled ? (b.happened/b.scheduled*100) : 0;
         avg.buyerHappenedToSigned += b.happened ? (b.signed/b.happened*100) : 0;
         avg.buyerSignedToClosed += b.signed ? (b.closings/b.signed*100) : 0;
@@ -218,7 +244,10 @@ document.addEventListener('DOMContentLoaded', () => {
         avg.sellerSignedToSoldMarket += s.signed ? (s.soldMarket/s.signed*100) : 0;
         avg.sellerSignedToSoldOffMarket += s.signed ? (s.soldOffMarket/s.signed*100) : 0;
       });
+      
+      // Calculate the true average by dividing by the number of quarters
       Object.keys(avg).forEach(k=>avg[k]/=data.length);
+      
       summaryTable.innerHTML += `<tr>
         <td>${year}</td>
         <td>${avg.buyerApptToHappened.toFixed(1)}%</td>
@@ -256,9 +285,9 @@ nav button.active{background:#0d6efd;}
 
 <div id="auth-section" class="container">
 <h3>Login or Create Account</h3>
-<input id="email" type="email" placeholder="Email"><br>
-<input id="password" type="password" placeholder="Password"><br>
-<button id="loginBtn">Login / Sign Up</button>
+<input **id="email"** type="email" placeholder="Email"><br>
+<input **id="password"** type="password" placeholder="Password"><br>
+<button **id="loginBtn"**>Login / Sign Up</button>
 </div>
 
 <div id="main-section" class="container" style="display:none;">
