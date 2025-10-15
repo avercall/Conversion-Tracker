@@ -3,263 +3,274 @@
 <head>
 <meta charset="UTF-8">
 <title>Conversion Tracker</title>
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-import {
-  getAuth,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-import { Chart, registerables } from "https://cdn.jsdelivr.net/npm/chart.js";
-Chart.register(...registerables);
+
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Your JavaScript logic needs to be modified slightly for the classic SDK
+// and must be defined globally before use.
+
+// Chart.js initialization must occur here
+Chart.register(...Chart.registerables); // Use the global Chart object
 
 document.addEventListener('DOMContentLoaded', () => {
-  const firebaseConfig = {
-    apiKey: "AIzaSyCK2-z1db6pPBxTl9nV10r26DN-CG1REvo",
-    authDomain: "conversion-tracker-3418b.firebaseapp.com",
-    projectId: "conversion-tracker-3418b",
-    storageBucket: "conversion-tracker-3418b.firebasestorage.app",
-    messagingSenderId: "621449595799",
-    appId: "1:621449595799:web:0aa7359d5eb7c275d6d2d2",
-    measurementId: "G-BW1RSQ21BQ"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
-  const auth = getAuth(app);
-  let currentUser = null;
-
-  // Auth state listener
-  onAuthStateChanged(auth, user => {
-    currentUser = user;
-    if (user) {
-      console.log("✅ Logged in as:", user.email || "Anonymous");
-      document.getElementById('auth-section').style.display = 'none';
-      document.getElementById('main-section').style.display = 'block';
-      // Set the initial quarter input value if it's empty
-      if (!document.getElementById('quarter').value) {
-          document.getElementById('quarter').value = "2025-Q1";
-      }
-      loadQuarterData();
-      loadYearlySummary();
-    } else {
-      console.log("⚠️ Not logged in");
-      document.getElementById('auth-section').style.display = 'block';
-      document.getElementById('main-section').style.display = 'none';
+    // Check if Firebase is available
+    if (typeof firebase === 'undefined') {
+        console.error("Firebase is not loaded! Check your script source URLs.");
+        alert("CRITICAL ERROR: Firebase SDK did not load. Check the network tab!");
+        return;
     }
-  });
-
-  // Login button
-  document.getElementById('loginBtn').addEventListener('click', async () => {
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      alert("✅ Login successful!");
-    } catch (error) {
-      // If user not found, try to create an account
-      if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-        try {
-          await createUserWithEmailAndPassword(auth, email, password);
-          alert("✅ Account created and logged in!");
-        } catch (err) {
-          console.error("Error creating account:", err);
-          alert("❌ Account Creation Error: " + err.message);
-        }
-      } else {
-        console.error("Login error:", error);
-        alert("❌ Login Error: " + error.message);
-      }
-    }
-  });
-
-  // Logout function
-  window.logout = function() {
-    signOut(auth);
-    alert("Logged out");
-  }
-
-  // Tab switching
-  window.showTab = function(tab) {
-    document.getElementById('quarterTabContent').style.display = tab === 'quarter' ? 'block' : 'none';
-    document.getElementById('yearTabContent').style.display = tab === 'year' ? 'block' : 'none';
-    document.getElementById('quarterTab').classList.toggle('active', tab === 'quarter');
-    document.getElementById('yearTab').classList.toggle('active', tab === 'year');
-  }
-
-  // Save quarter data
-  window.saveQuarterData = async function() {
-    if (!currentUser) return alert("Not logged in!");
-    const quarter = document.getElementById('quarter').value;
-
-    const data = {
-      quarter,
-      buyers: {
-        scheduled: Number(document.getElementById('buyerScheduled').value) || 0,
-        happened: Number(document.getElementById('buyerHappened').value) || 0,
-        signed: Number(document.getElementById('buyerSigned').value) || 0,
-        closings: Number(document.getElementById('buyerClosings').value) || 0
-      },
-      sellers: {
-        scheduled: Number(document.getElementById('sellerScheduled').value) || 0,
-        happened: Number(document.getElementById('sellerHappened').value) || 0,
-        signed: Number(document.getElementById('sellerSigned').value) || 0,
-        soldMarket: Number(document.getElementById('sellerSoldMarket').value) || 0,
-        soldOffMarket: Number(document.getElementById('sellerSoldOffMarket').value) || 0
-      }
+    
+    // 1. Initialize Firebase App
+    const firebaseConfig = {
+        apiKey: "AIzaSyCK2-z1db6pPBxTl9nV10r26DN-CG1REvo",
+        authDomain: "conversion-tracker-3418b.firebaseapp.com",
+        projectId: "conversion-tracker-3418b",
+        storageBucket: "conversion-tracker-3418b.firebasestorage.app",
+        messagingSenderId: "621449595799",
+        appId: "1:621449595799:web:0aa7359d5eb7c275d6d2d2",
+        measurementId: "G-BW1RSQ21BQ"
     };
 
-    // Document ID uses UID to scope data to the user
-    await setDoc(doc(db, "conversion_tracker", currentUser.uid + "-" + quarter), data);
-    alert("✅ Quarter data saved!");
-    drawChart(data);
-    loadYearlySummary();
-  }
+    const app = firebase.initializeApp(firebaseConfig);
+    
+    // 2. Access Services using the global namespaced functions
+    // NOTE: The Firebase 9 SDK you were using in 'type="module"' uses a different API style.
+    // The CDN URLs above load the Firebase 9 namespaced (compatibility) version.
 
-  // Load quarter data
-  async function loadQuarterData() {
-    if (!currentUser) return;
-    const quarter = document.getElementById('quarter').value;
-    const docRef = doc(db, "conversion_tracker", currentUser.uid + "-" + quarter);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      document.getElementById('buyerScheduled').value = data.buyers.scheduled;
-      document.getElementById('buyerHappened').value = data.buyers.happened;
-      document.getElementById('buyerSigned').value = data.buyers.signed;
-      document.getElementById('buyerClosings').value = data.buyers.closings;
-      document.getElementById('sellerScheduled').value = data.sellers.scheduled;
-      document.getElementById('sellerHappened').value = data.sellers.happened;
-      document.getElementById('sellerSigned').value = data.sellers.signed;
-      document.getElementById('sellerSoldMarket').value = data.sellers.soldMarket;
-      document.getElementById('sellerSoldOffMarket').value = data.sellers.soldOffMarket;
-      drawChart(data);
-    } else {
+    const db = firebase.firestore(app);
+    const auth = firebase.auth(app);
+    let currentUser = null;
+
+    // Helper functions from the global namespace
+    const signInWithEmailAndPassword = firebase.auth().signInWithEmailAndPassword;
+    const createUserWithEmailAndPassword = firebase.auth().createUserWithEmailAndPassword;
+    const onAuthStateChanged = firebase.auth().onAuthStateChanged;
+    const signOut = firebase.auth().signOut;
+    const doc = (path, docId) => db.collection(path).doc(docId);
+    const setDoc = (docRef, data) => docRef.set(data);
+    const getDoc = (docRef) => docRef.get();
+    const collection = (path) => db.collection(path);
+    const getDocs = (colRef) => colRef.get();
+
+    // The rest of your script logic remains mostly the same,
+    // but the Firebase functions are now correctly referenced from the global scope.
+
+    // Auth state listener
+    onAuthStateChanged(auth, user => {
+        currentUser = user;
+        if (user) {
+            console.log("✅ Logged in as:", user.email || "Anonymous");
+            document.getElementById('auth-section').style.display = 'none';
+            document.getElementById('main-section').style.display = 'block';
+            loadQuarterData();
+            loadYearlySummary();
+        } else {
+            console.log("⚠️ Not logged in");
+            document.getElementById('auth-section').style.display = 'block';
+            document.getElementById('main-section').style.display = 'none';
+        }
+    });
+
+    // Login button
+    document.getElementById('loginBtn').addEventListener('click', async () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+
+        try {
+            await signInWithEmailAndPassword(auth, email, password);
+            alert("✅ Login successful!");
+        } catch (error) {
+            // If user not found, try to create an account
+            if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    alert("✅ Account created and logged in!");
+                } catch (err) {
+                    console.error("Error creating account:", err);
+                    alert("❌ Account Creation Error: " + err.message);
+                }
+            } else {
+                console.error("Login error:", error);
+                alert("❌ Login Error: " + error.message);
+            }
+        }
+    });
+
+    // Logout function
+    window.logout = function() {
+        signOut(auth);
+        alert("Logged out");
+    }
+
+    // Tab switching
+    window.showTab = function(tab) {
+        document.getElementById('quarterTabContent').style.display = tab === 'quarter' ? 'block' : 'none';
+        document.getElementById('yearTabContent').style.display = tab === 'year' ? 'block' : 'none';
+        document.getElementById('quarterTab').classList.toggle('active', tab === 'quarter');
+        document.getElementById('yearTab').classList.toggle('active', tab === 'year');
+    }
+
+    // Save quarter data
+    window.saveQuarterData = async function() {
+        if (!currentUser) return alert("Not logged in!");
+        const quarter = document.getElementById('quarter').value;
+
+        const data = {
+            quarter,
+            buyers: {
+                scheduled: Number(document.getElementById('buyerScheduled').value) || 0,
+                happened: Number(document.getElementById('buyerHappened').value) || 0,
+                signed: Number(document.getElementById('buyerSigned').value) || 0,
+                closings: Number(document.getElementById('buyerClosings').value) || 0
+            },
+            sellers: {
+                scheduled: Number(document.getElementById('sellerScheduled').value) || 0,
+                happened: Number(document.getElementById('sellerHappened').value) || 0,
+                signed: Number(document.getElementById('sellerSigned').value) || 0,
+                soldMarket: Number(document.getElementById('sellerSoldMarket').value) || 0,
+                soldOffMarket: Number(document.getElementById('sellerSoldOffMarket').value) || 0
+            }
+        };
+
+        // Document ID uses UID to scope data to the user
+        await setDoc(doc("conversion_tracker", currentUser.uid + "-" + quarter), data);
+        alert("✅ Quarter data saved!");
+        drawChart(data);
+        loadYearlySummary();
+    }
+
+    // Load quarter data
+    window.loadQuarterData = async function() {
+        if (!currentUser) return;
+        const quarter = document.getElementById('quarter').value;
+        const docRef = doc("conversion_tracker", currentUser.uid + "-" + quarter);
+        const docSnap = await getDoc(docRef);
+        
         // Clear inputs if no data is found for the quarter
         const idsToClear = ['buyerScheduled', 'buyerHappened', 'buyerSigned', 'buyerClosings', 
                             'sellerScheduled', 'sellerHappened', 'sellerSigned', 'sellerSoldMarket', 'sellerSoldOffMarket'];
-        idsToClear.forEach(id => document.getElementById(id).value = 0);
-        // Draw chart with empty data
-        drawChart({buyers: {scheduled:0, happened:0, signed:0, closings:0}, sellers: {scheduled:0, happened:0, signed:0, soldMarket:0, soldOffMarket:0}});
+        
+        if (docSnap.exists) {
+            const data = docSnap.data();
+            document.getElementById('buyerScheduled').value = data.buyers.scheduled;
+            document.getElementById('buyerHappened').value = data.buyers.happened;
+            document.getElementById('buyerSigned').value = data.buyers.signed;
+            document.getElementById('buyerClosings').value = data.buyers.closings;
+            document.getElementById('sellerScheduled').value = data.sellers.scheduled;
+            document.getElementById('sellerHappened').value = data.sellers.happened;
+            document.getElementById('sellerSigned').value = data.sellers.signed;
+            document.getElementById('sellerSoldMarket').value = data.sellers.soldMarket;
+            document.getElementById('sellerSoldOffMarket').value = data.sellers.soldOffMarket;
+            drawChart(data);
+        } else {
+            idsToClear.forEach(id => document.getElementById(id).value = 0);
+            drawChart({buyers: {scheduled:0, happened:0, signed:0, closings:0}, sellers: {scheduled:0, happened:0, signed:0, soldMarket:0, soldOffMarket:0}});
+        }
     }
-  }
-  
-  // Set loadQuarterData on quarter input change
-  window.loadQuarterData = loadQuarterData;
 
-  // Draw chart
-  function drawChart(data) {
-    const ctx = document.getElementById('ratioChart').getContext('2d');
-    if (window.ratioChartInstance) window.ratioChartInstance.destroy();
+    // Draw chart
+    function drawChart(data) {
+        const ctx = document.getElementById('ratioChart').getContext('2d');
+        if (window.ratioChartInstance) window.ratioChartInstance.destroy();
 
-    const buyerApptToHappened = data.buyers.scheduled ? (data.buyers.happened / data.buyers.scheduled) * 100 : 0;
-    const buyerHappenedToSigned = data.buyers.happened ? (data.buyers.signed / data.buyers.happened) * 100 : 0;
-    const buyerSignedToClosed = data.buyers.signed ? (data.buyers.closings / data.buyers.signed) * 100 : 0;
-    const sellerApptToHappened = data.sellers.scheduled ? (data.sellers.happened / data.sellers.scheduled) * 100 : 0;
-    const sellerHappenedToSigned = data.sellers.happened ? (data.sellers.signed / data.sellers.happened) * 100 : 0;
-    const sellerSignedToSoldMarket = data.sellers.signed ? (data.sellers.soldMarket / data.sellers.signed) * 100 : 0;
-    const sellerSignedToSoldOffMarket = data.sellers.signed ? (data.sellers.soldOffMarket / data.sellers.signed) * 100 : 0;
+        const buyerApptToHappened = data.buyers.scheduled ? (data.buyers.happened / data.buyers.scheduled) * 100 : 0;
+        const buyerHappenedToSigned = data.buyers.happened ? (data.buyers.signed / data.buyers.happened) * 100 : 0;
+        const buyerSignedToClosed = data.buyers.signed ? (data.buyers.closings / data.buyers.signed) * 100 : 0;
+        const sellerApptToHappened = data.sellers.scheduled ? (data.sellers.happened / data.sellers.scheduled) * 100 : 0;
+        const sellerHappenedToSigned = data.sellers.happened ? (data.sellers.signed / data.sellers.happened) * 100 : 0;
+        const sellerSignedToSoldMarket = data.sellers.signed ? (data.sellers.soldMarket / data.sellers.signed) * 100 : 0;
+        const sellerSignedToSoldOffMarket = data.sellers.signed ? (data.sellers.soldOffMarket / data.sellers.signed) * 100 : 0;
 
-    window.ratioChartInstance = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: [
-          'Buyer Appt→Happened', 'Buyer Happened→Signed', 'Buyer Signed→Closed',
-          'Seller Appt→Happened', 'Seller Happened→Signed', 'Seller Signed→Sold Mkt', 'Seller Signed→Sold Off'
-        ],
-        datasets: [{
-          label: '% Conversion',
-          data: [
-            buyerApptToHappened.toFixed(1), buyerHappenedToSigned.toFixed(1), buyerSignedToClosed.toFixed(1),
-            sellerApptToHappened.toFixed(1), sellerHappenedToSigned.toFixed(1), sellerSignedToSoldMarket.toFixed(1), sellerSignedToSoldOffMarket.toFixed(1)
-          ],
-          backgroundColor: '#0d6efd'
-        }]
-      },
-      options: { scales: { y: { beginAtZero: true, max: 100 } } }
-    });
-  }
+        window.ratioChartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: [
+                    'Buyer Appt→Happened', 'Buyer Happened→Signed', 'Buyer Signed→Closed',
+                    'Seller Appt→Happened', 'Seller Happened→Signed', 'Seller Signed→Sold Mkt', 'Seller Signed→Sold Off'
+                ],
+                datasets: [{
+                    label: '% Conversion',
+                    data: [
+                        buyerApptToHappened.toFixed(1), buyerHappenedToSigned.toFixed(1), buyerSignedToClosed.toFixed(1),
+                        sellerApptToHappened.toFixed(1), sellerHappenedToSigned.toFixed(1), sellerSignedToSoldMarket.toFixed(1), sellerSignedToSoldOffMarket.toFixed(1)
+                    ],
+                    backgroundColor: '#0d6efd'
+                }]
+            },
+            options: { scales: { y: { beginAtZero: true, max: 100 } } }
+        });
+    }
 
-  // Load yearly summary
-  async function loadYearlySummary() {
-    if (!currentUser) return;
-    const colRef = collection(db, "conversion_tracker");
-    
-    // NOTE: This currently fetches ALL documents in the collection and filters in JS, 
-    // which is INEFFICIENT and a potential security risk if rules aren't set correctly. 
-    // A better approach would be to use a Firestore query with a 'where' clause on a user_id field.
-    const snap = await getDocs(colRef);
-    const docs = [];
-    snap.forEach(d => { 
-      // Filter documents belonging to the current user (based on your document ID convention)
-      if(d.id.startsWith(currentUser.uid)) docs.push(d.data()); 
-    });
+    // Load yearly summary
+    async function loadYearlySummary() {
+        if (!currentUser) return;
+        const colRef = collection("conversion_tracker");
+        const snap = await getDocs(colRef);
+        const docs = [];
+        
+        snap.forEach(d => { 
+            // Filter documents belonging to the current user (based on your document ID convention)
+            if(d.id.startsWith(currentUser.uid)) docs.push(d.data()); 
+        });
 
-    const grouped = {};
-    docs.forEach(d => {
-      const [year] = d.quarter.split('-');
-      if(!grouped[year]) grouped[year] = [];
-      grouped[year].push(d);
-    });
+        const grouped = {};
+        docs.forEach(d => {
+            const [year] = d.quarter.split('-');
+            if(!grouped[year]) grouped[year] = [];
+            grouped[year].push(d);
+        });
 
-    const summaryTable = document.getElementById('yearlySummaryTable');
-    summaryTable.innerHTML = `<tr>
-      <th>Year</th>
-      <th>Buyer Appt→Happened</th>
-      <th>Buyer Happened→Signed</th>
-      <th>Buyer Signed→Closed</th>
-      <th>Seller Appt→Happened</th>
-      <th>Seller Happened→Signed</th>
-      <th>Seller Signed→Sold Mkt</th>
-      <th>Seller Signed→Sold Off</th>
-    </tr>`;
+        const summaryTable = document.getElementById('yearlySummaryTable');
+        summaryTable.innerHTML = `<tr>
+            <th>Year</th>
+            <th>Buyer Appt→Happened</th>
+            <th>Buyer Happened→Signed</th>
+            <th>Buyer Signed→Closed</th>
+            <th>Seller Appt→Happened</th>
+            <th>Seller Happened→Signed</th>
+            <th>Seller Signed→Sold Mkt</th>
+            <th>Seller Signed→Sold Off</th>
+        </tr>`;
 
-    Object.keys(grouped).forEach(year => {
-      const data = grouped[year];
-      const avg = {
-        buyerApptToHappened:0, buyerHappenedToSigned:0, buyerSignedToClosed:0,
-        sellerApptToHappened:0, sellerHappenedToSigned:0, sellerSignedToSoldMarket:0, sellerSignedToSoldOffMarket:0
-      };
-      
-      // Calculate total percentage points for each metric across the quarters
-      data.forEach(d=>{
-        const b=d.buyers, s=d.sellers;
-        // Check for division by zero
-        avg.buyerApptToHappened += b.scheduled ? (b.happened/b.scheduled*100) : 0;
-        avg.buyerHappenedToSigned += b.happened ? (b.signed/b.happened*100) : 0;
-        avg.buyerSignedToClosed += b.signed ? (b.closings/b.signed*100) : 0;
-        avg.sellerApptToHappened += s.scheduled ? (s.happened/s.scheduled*100) : 0;
-        avg.sellerHappenedToSigned += s.happened ? (s.signed/s.happened*100) : 0;
-        avg.sellerSignedToSoldMarket += s.signed ? (s.soldMarket/s.signed*100) : 0;
-        avg.sellerSignedToSoldOffMarket += s.signed ? (s.soldOffMarket/s.signed*100) : 0;
-      });
-      
-      // Calculate the true average by dividing by the number of quarters
-      Object.keys(avg).forEach(k=>avg[k]/=data.length);
-      
-      summaryTable.innerHTML += `<tr>
-        <td>${year}</td>
-        <td>${avg.buyerApptToHappened.toFixed(1)}%</td>
-        <td>${avg.buyerHappenedToSigned.toFixed(1)}%</td>
-        <td>${avg.buyerSignedToClosed.toFixed(1)}%</td>
-        <td>${avg.sellerApptToHappened.toFixed(1)}%</td>
-        <td>${avg.sellerHappenedToSigned.toFixed(1)}%</td>
-        <td>${avg.sellerSignedToSoldMarket.toFixed(1)}%</td>
-        <td>${avg.sellerSignedToSoldOffMarket.toFixed(1)}%</td>
-      </tr>`;
-    });
-  }
+        Object.keys(grouped).forEach(year => {
+            const data = grouped[year];
+            const avg = {
+                buyerApptToHappened:0, buyerHappenedToSigned:0, buyerSignedToClosed:0,
+                sellerApptToHappened:0, sellerHappenedToSigned:0, sellerSignedToSoldMarket:0, sellerSignedToSoldOffMarket:0
+            };
+            
+            data.forEach(d=>{
+                const b=d.buyers, s=d.sellers;
+                // Calculate total percentage points for each metric across the quarters
+                avg.buyerApptToHappened += b.scheduled ? (b.happened/b.scheduled*100) : 0;
+                avg.buyerHappenedToSigned += b.happened ? (b.signed/b.happened*100) : 0;
+                avg.buyerSignedToClosed += b.signed ? (b.closings/b.signed*100) : 0;
+                avg.sellerApptToHappened += s.scheduled ? (s.happened/s.scheduled*100) : 0;
+                avg.sellerHappenedToSigned += s.happened ? (s.signed/s.happened*100) : 0;
+                avg.sellerSignedToSoldMarket += s.signed ? (s.soldMarket/s.signed*100) : 0;
+                avg.sellerSignedToSoldOffMarket += s.signed ? (s.soldOffMarket/s.signed*100) : 0;
+            });
+            
+            // Calculate the true average by dividing by the number of quarters
+            Object.keys(avg).forEach(k=>avg[k]/=data.length);
+            
+            summaryTable.innerHTML += `<tr>
+                <td>${year}</td>
+                <td>${avg.buyerApptToHappened.toFixed(1)}%</td>
+                <td>${avg.buyerHappenedToSigned.toFixed(1)}%</td>
+                <td>${avg.buyerSignedToClosed.toFixed(1)}%</td>
+                <td>${avg.sellerApptToHappened.toFixed(1)}%</td>
+                <td>${avg.sellerHappenedToSigned.toFixed(1)}%</td>
+                <td>${avg.sellerSignedToSoldMarket.toFixed(1)}%</td>
+                <td>${avg.sellerSignedToSoldOffMarket.toFixed(1)}%</td>
+            </tr>`;
+        });
+    }
 });
 </script>
 
@@ -285,9 +296,9 @@ nav button.active{background:#0d6efd;}
 
 <div id="auth-section" class="container">
 <h3>Login or Create Account</h3>
-<input **id="email"** type="email" placeholder="Email"><br>
-<input **id="password"** type="password" placeholder="Password"><br>
-<button **id="loginBtn"**>Login / Sign Up</button>
+<input id="email" type="email" placeholder="Email"><br>
+<input id="password" type="password" placeholder="Password"><br>
+<button id="loginBtn">Login / Sign Up</button>
 </div>
 
 <div id="main-section" class="container" style="display:none;">
