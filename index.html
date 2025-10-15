@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real Estate Conversion Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_AUTH_DOMAIN",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_STORAGE_BUCKET",
+      messagingSenderId: "YOUR_MSG_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth();
+
+    let currentUser = null;
+
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('auth-section').style.display = 'none';
+        document.getElementById('main-section').style.display = 'block';
+        loadQuarterData();
+        loadYearlySummary();
+      } else {
+        document.getElementById('auth-section').style.display = 'block';
+        document.getElementById('main-section').style.display = 'none';
+      }
+    });
+
+    async function login() {
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (e) {
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+        } catch (err) {
+          alert("Error: " + err.message);
+        }
+      }
+    }
+
+    function logout() {
+      signOut(auth);
+    }
+
+    async function saveQuarterData() {
+      const quarter = document.getElementById('quarter').value;
+      const docRef = doc(db, "conversion_tracker", `${currentUser.uid}-${quarter}`);
+      const data = {
+        quarter,
+        buyers: {
+          scheduled: Number(document.getElementById('buyerScheduled').value),
+          happened: Number(document.getElementById('buyerHappened').value),
+          signed: Number(document.getElementById('buyerSigned').value),
+          closings: Number(document.getElementById('buyerClosings').value)
+        },
+        sellers: {
+          scheduled: Number(document.getElementById('sellerScheduled').value),
+          happened: Number(document.getElementById('sellerHappened').value),
+          signed: Number(document.getElementById('sellerSigned').value),
+          soldMarket: Number(document.getElementById('sellerSoldMarket').value),
+          soldOffMarket: Number(document.getElementById('sellerSoldOffMarket').value)
+        },
+        timestamp: new Date().toISOString()
+      };
+      await setDoc(docRef, data);
+      alert("Quarter data saved!");
+      loadYearlySummary();
+    }
+
+    async function loadQuarterData() {
+      const quarter = document.getElementById('quarter').value;
+      const docRef = doc(db, "conversion_tracker", `${currentUser.uid}-${quarter}`);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const d = snap.data();
+        document.getElementById('buyerScheduled').value = d.buyers.scheduled;
+        document.getElementById('buyerHappened').value = d.buyers.happened;
+        document.getElementById('buyerSigned').value = d.buyers.signed;
+        document.getElementById('buyerClosings').value = d.buyers.closings;
+        document.getElementById('sellerScheduled').value = d.sellers.scheduled;
+        document.getElementById('sellerHappened').value = d.sellers.happened;
+        document.getElementById('sellerSigned').value = d.sellers.signed;
+        document.getElementById('sellerSoldMarket').value = d.sellers.soldMarket;
+        document.getElementById('sellerSoldOffMarket').value = d.sellers.soldOffMarket;
+      }
+      updateRatios();
+    }
+
+    function updateRatios() {
+      const bS = +document.getElementById('buyerScheduled').value;
+      const bH = +document.getElementById('buyerHappened').value;
+      const bSi = +document.getElementById('buyerSigned').value;
+      const bC = +document.getElementById('buyerClosings').value;
+
+      const sS = +document.getElementById('sellerScheduled').value;
+      const sH = +document.getElementById('sellerHappened').value;
+      const sSi = +document.getElementById('sellerSigned').value;
+      const sSM = +document.getElementById('sellerSoldMarket').value;
+      const sSO = +document.getElementById('sellerSoldOffMarket').value;
+
+      const buyerRatios = {
+        apptToHappened: (bH / bS) * 100 || 0,
+        happenedToSigned: (bSi / bH) * 100 || 0,
+        signedToClosed: (bC / bSi) * 100 || 0
+      };
+
+      const sellerRatios = {
+        apptToHappened: (sH / sS) * 100 || 0,
+        happenedToSigned: (sSi / sH) * 100 || 0,
+        signedToSoldMarket: (sSM / sSi) * 100 || 0,
+        signedToSoldOffMarket: (sSO / sSi) * 100 || 0
+      };
+
+      document.getElementById('buyerRatios').innerHTML = `
+        <p>Appointments → Happened: ${buyerRatios.apptToHappened.toFixed(1)}%</p>
+        <p>Happened → Signed: ${buyerRatios.happenedToSigned.toFixed(1)}%</p>
+        <p>Signed → Closed: ${buyerRatios.signedToClosed.toFixed(1)}%</p>
+      `;
+
+      document.getElementById('sellerRatios').innerHTML = `
+        <p>Appointments → Happened: ${sellerRatios.apptToHappened.toFixed(1)}%</p>
+        <p>Happened → Signed: ${sellerRatios.happenedToSigned.toFixed(1)}%</p>
+        <p>Signed → Sold (On Market): ${sellerRatios.signedToSoldMarket.toFixed(1)}%</p>
+        <p>Signed → Sold (Off Market): ${sellerRatios.signedToSoldOffMarket.toFixed(1)}%</p>
+      `;
+      drawChart(buyerRatios, sellerRatios);
+    }
+
+    let chartInstance = null;
+    function drawChart(buyerRatios, sellerRatios) {
+      const ctx = document.getElementById('ratioChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: ['Step 1', 'Step 2', 'Step 3', 'Step 4'],
+          datasets: [
+            {
+              label: 'Buyer %',
+              data: [buyerRatios.apptToHappened, buyerRatios.happenedToSigned, buyerRatios.signedToClosed, 0]
+            },
+            {
+              label: 'Seller %',
+              data: [sellerRatios.apptToHappened, sellerRatios.happenedToSigned, sellerRatios.signedToSoldMarket, sellerRatios.signedToSoldOffMarket]
+            }
+          ]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+    }
+    async function loadYearlySummary() {
+      if (!currentUser) return;
+      const colRef = collection(db, "conversion_tracker");
+      const snap = await getDocs(colRef);
+      const docs = [];
+      snap.forEach(d => {
+        if (d.id.startsWith(currentUser.uid)) docs.push(d.data());
+      });
+
+      const grouped = {};
+      docs.forEach(d => {
+        const [year] = d.quarter.split('-');
+        if (!grouped[year]) grouped[year] = [];
+        grouped[year].push(d);
+      });
+
+      const summaryTable = document.getElementById('yearlySummaryTable');
+      summaryTable.innerHTML = `
+        <tr>
+          <th>Year</th>
+          <th>Buyer Appt→Happened</th>
+          <th>Buyer Happened→Signed</th>
+          <th>Buyer Signed→Closed</th>
+          <th>Seller Appt→Happened</th>
+          <th>Seller Happened→Signed</th>
+          <th>Seller Signed→Sold Mkt</th>
+          <th>Seller Signed→Sold Off</th>
+        </tr>`;
+
+      Object.keys(grouped).forEach(year => {
+        const data = grouped[year];
+        const avg = {
+          buyerApptToHappened: 0,
+          buyerHappenedToSigned: 0,
+          buyerSignedToClosed: 0,
+          sellerApptToHappened: 0,
+          sellerHappenedToSigned: 0,
+          sellerSignedToSoldMarket: 0,
+          sellerSignedToSoldOffMarket: 0
+        };
+
+        data.forEach(d => {
+          const b = d.buyers;
+          const s = d.sellers;
+          avg.buyerApptToHappened += (b.happened / b.scheduled) * 100 || 0;
+          avg.buyerHappenedToSigned += (b.signed / b.happened) * 100 || 0;
+          avg.buyerSignedToClosed += (b.closings / b.signed) * 100 || 0;
+          avg.sellerApptToHappened += (s.happened / s.scheduled) * 100 || 0;
+          avg.sellerHappenedToSigned += (s.signed / s.happened) * 100 || 0;
+          avg.sellerSignedToSoldMarket += (s.soldMarket / s.signed) * 100 || 0;
+          avg.sellerSignedToSoldOffMarket += (s.soldOffMarket / s.signed) * 100 || 0;
+        });
+
+        Object.keys(avg).forEach(k => avg[k] /= data.length);
+
+        summaryTable.innerHTML += `
+          <tr>
+            <td>${year}</td>
+            <td>${avg.buyerApptToHappened.toFixed(1)}%</td>
+            <td>${avg.buyerHappenedToSigned.toFixed(1)}%</td>
+            <td>${avg.buyerSignedToClosed.toFixed(1)}%</td>
+            <td>${avg.sellerApptToHappened.toFixed(1)}%</td>
+            <td>${avg.sellerHappenedToSigned.toFixed(1)}%</td>
+            <td>${avg.sellerSignedToSoldMarket.toFixed(1)}%</td>
+            <td>${avg.sellerSignedToSoldOffMarket.toFixed(1)}%</td>
+          </tr>`;
+      });
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f8f9fa;
+      color: #333;
+      margin: 0; padding: 0;
+    }
+    header {
+      background: #0d6efd;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+    .container {
+      padding: 1rem;
+      max-width: 900px;
+      margin: auto;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+    }
+    input {
+      width: 100%;
+      padding: 0.4rem;
+      margin: 0.2rem 0;
+    }
+    button {
+      background: #0d6efd;
+      border: none;
+      color: white;
+      padding: 0.6rem 1rem;
+      margin-top: 0.5rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #0b5ed7; }
+    canvas {
+      margin-top: 1rem;
+      background: white;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+      background: white;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 0.5rem;
+      text-align: center;
+    }
+    th { background: #e9ecef; }
+    nav button {
+      margin: 0.3rem;
+      background: #6c757d;
+    }
+    nav button.active {
+      background: #0d6efd;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h2>Real Estate Conversion Tracker</h2>
+  </header>
+
+  <div id="auth-section" class="container">
+    <h3>Login or Create Account</h3>
+    <input id="email" type="email" placeholder="Email"><br>
+    <input id="password" type="password" placeholder="Password"><br>
+    <button onclick="login()">Login / Sign Up</button>
+  </div>
+
+  <div id="main-section" class="container" style="display:none;">
+    <button onclick="logout()" style="float:right;">Logout</button>
+
+    <nav>
+      <button id="quarterTab" class="active" onclick="showTab('quarter')">Quarterly Tracker</button>
+      <button id="yearTab" onclick="showTab('year')">Yearly Summary</button>
+    </nav>
+
+    <div id="quarterTabContent">
+      <h3>Quarterly Tracker</h3>
+      <label>Quarter (e.g., 2025-Q4):</label>
+      <input id="quarter" value="2025-Q4" onchange="loadQuarterData()">
+
+      <h4>Buyers</h4>
+      <div class="grid">
+        <div><label>Appointments Scheduled</label><input id="buyerScheduled" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Appointments Happened</label><input id="buyerHappened" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Signed</label><input id="buyerSigned" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Closings</label><input id="buyerClosings" type="number" value="0" onchange="updateRatios()"></div>
+      </div>
+
+      <div id="buyerRatios"></div>
+
+      <h4>Sellers</h4>
+      <div class="grid">
+        <div><label>Appointments Scheduled</label><input id="sellerScheduled" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Appointments Happened</label><input id="sellerHappened" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Signed</label><input id="sellerSigned" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Sold (On Market)</label><input id="sellerSoldMarket" type="number" value="0" onchange="updateRatios()"></div>
+        <div><label>Sold (Off Market)</label><input id="sellerSoldOffMarket" type="number" value="0" onchange="updateRatios()"></div>
+      </div>
+
+      <div id="sellerRatios"></div>
+
+      <button onclick="saveQuarterData()">Save Quarter</button>
+      <canvas id="ratioChart" height="150"></canvas>
+    </div>
+
+    <div id="yearTabContent" style="display:none;">
+      <h3>Yearly Summary</h3>
+      <table id="yearlySummaryTable"></table>
+    </div>
+  </div>
+
+  <script>
+    function showTab(tab) {
+      document.getElementById('quarterTabContent').style.display = tab === 'quarter' ? 'block' : 'none';
+      document.getElementById('yearTabContent').style.display = tab === 'year' ? 'block' : 'none';
+      document.getElementById('quarterTab').classList.toggle('active', tab === 'quarter');
+      document.getElementById('yearTab').classList.toggle('active', tab === 'year');
+    }
+  </script>
+</body>
+</html>
